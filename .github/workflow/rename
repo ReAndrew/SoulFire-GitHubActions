@@ -1,0 +1,51 @@
+name: Start SoulFire Dedicated Server (Playit.gg)
+
+on:
+  workflow_dispatch:
+
+jobs:
+  run-dedicated:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Set up Java 25
+      uses: actions/setup-java@v4
+      with:
+        distribution: 'oracle' # Используем Oracle JDK, так как у них уже точно есть стабильная Java 25
+        java-version: '25'
+
+    - name: Setup and Run SoulFire with fxtunnel
+      run: |
+        echo "=========================================================="
+        echo "1. УСТАНОВКА FXTUNNEL И SOULFIRE"
+        echo "=========================================================="
+        curl -fsSL https://fxtun.ru/install.sh | sh
+        curl -L -o soulfire-dedicated.jar "https://github.com/soulfiremc-com/SoulFire/releases/download/2.8.3/SoulFireDedicated-2.8.3.jar"
+        echo "=========================================================="
+        echo "2. ЗАПУСК ЭМУЛЯТОРА КЛИЕНТА SOULFIRE"
+        echo "=========================================================="
+        # Запускаем Java на заднем плане (обрати внимание на значок & в самом конце строки)
+        java -Xmx2G \
+            -Djava.awt.headless=true \
+            -Dfabric.development=false \
+            -XX:+EnableDynamicAgentLoading \
+            -XX:+UnlockExperimentalVMOptions \
+            -XX:+UseZGC \
+            -XX:+UseCompactObjectHeaders \
+            -XX:+AlwaysActAsServerClassMachine \
+            -XX:+UseNUMA \
+            -XX:+UseFastUnorderedTimeStamps \
+            -XX:+UseVectorCmov \
+            -XX:+UseCriticalJavaThreadPriority \
+            -Dsf.flags.v2=true \
+            -jar soulfire-dedicated.jar &
+
+        # Даем серверу 30 секунд. Ему нужно успеть проверить файлы и открыть порт 38765
+        echo "Ожидаем инициализацию SoulFire и открытие gRPC порта..."
+        sleep 30
+
+        echo "=========================================================="
+        echo "3. ЗАПУСК ТУННЕЛЯ FXTUNNEL"
+        echo "=========================================================="
+        # Запускаем туннель на переднем плане, подтягивая токен из секретов репозитория
+        fxtunnel http 38765 --token "${{ secrets.FXTUNNEL_TOKEN }}"
